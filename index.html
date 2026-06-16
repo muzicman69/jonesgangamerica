@@ -11,7 +11,9 @@
 <meta name="format-detection" content="telephone=no">
 <title>Diamond Live — Slow Pitch Softball</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-512.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700&display=swap');
 
@@ -2438,51 +2440,33 @@ function startRecording(camStream) {
   // 2. Draw loop — video frame + scorebug overlay at 30fps
   const vid = document.getElementById('live-vid');
 
-  // Size canvas to actual video track dimensions (respects portrait/landscape)
-  function sizeCanvas() {
-    const track = camStream.getVideoTracks()[0];
-    if (track) {
-      const settings = track.getSettings();
-      if (settings.width && settings.height) {
-        canvas.width  = settings.width;
-        canvas.height = settings.height;
-        console.log('[REC] canvas sized to', settings.width, 'x', settings.height);
-        return;
-      }
-    }
-    // fallback: read from video element once loaded
-    if (vid && vid.videoWidth) {
-      canvas.width  = vid.videoWidth;
-      canvas.height = vid.videoHeight;
-      console.log('[REC] canvas sized from video element:', vid.videoWidth, 'x', vid.videoHeight);
-      return;
-    }
-    // last resort default
-    canvas.width  = 1280;
-    canvas.height = 720;
-  }
-  sizeCanvas();
+  // Fixed 1920x1080 landscape — matches horizontal phone recording
+  canvas.width  = 1920;
+  canvas.height = 1080;
 
   function drawFrame() {
     if (!REC.canvas) return;
     const W = canvas.width, H = canvas.height;
 
-    // re-check dimensions if video has loaded since we started
-    if (vid && vid.videoWidth && (vid.videoWidth !== W || vid.videoHeight !== H)) {
-      canvas.width  = vid.videoWidth;
-      canvas.height = vid.videoHeight;
-    }
-
-    // draw camera frame — fill entire canvas, no stretching
+    // Draw camera frame letterboxed/pillarboxed to preserve aspect ratio
     if (vid && vid.readyState >= 2) {
-      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      const vw = vid.videoWidth  || W;
+      const vh = vid.videoHeight || H;
+      const scale = Math.min(W / vw, H / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      const dx = (W - dw) / 2;
+      const dy = (H - dh) / 2;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(vid, dx, dy, dw, dh);
     } else {
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, W, H);
     }
 
     // draw scorebug
-    drawScorebug(ctx, canvas.width, canvas.height);
+    drawScorebug(ctx, W, H);
 
     REC.frameId = requestAnimationFrame(drawFrame);
   }
