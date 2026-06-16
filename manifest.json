@@ -1,0 +1,42 @@
+{
+  "name": "Diamond Live",
+  "short_name": "DiamondLive",
+  "description": "Live streaming platform for slow pitch softball",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05080a",
+  "theme_color": "#05080a",
+  "icons": [
+    {
+      "src": "icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "entertainment"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Go Live",
+      "short_name": "Stream",
+      "description": "Start streaming your game",
+      "url": "/?screen=golive",
+      "icons": [{ "src": "icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Browse Games",
+      "short_name": "Browse",
+      "description": "Watch live games",
+      "url": "/",
+      "icons": [{ "src": "icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
+}
