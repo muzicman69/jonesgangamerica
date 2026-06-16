@@ -2463,13 +2463,17 @@ function startRecording(camStream) {
   audioTracks.forEach(t => canvasStream.addTrack(t));
 
   // 4. Record the composite stream
+  // iPhone/Safari records MP4 natively
   const types = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1,mp4a.40.2',
     'video/mp4',
   ];
-  REC.mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  REC.mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || 'video/mp4';
+  if (!MediaRecorder.isTypeSupported(REC.mimeType)) {
+    toast('MP4 recording not supported on this browser. Try Safari on iPhone.');
+    return;
+  }
 
   try {
     REC.recorder  = new MediaRecorder(canvasStream, {
@@ -2627,8 +2631,8 @@ function stopRecordingAndSave() {
 function saveRecording() {
   if (!REC.chunks.length) { toast('No recording data to save'); return; }
 
-  const blob = new Blob(REC.chunks, { type: REC.mimeType || 'video/webm' });
-  const ext  = REC.mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(REC.chunks, { type: REC.mimeType || 'video/mp4' });
+  const ext  = 'mp4';
 
   // Build filename: DiamondLive_YYYY-MM-DD_HH-MM.mp4
   const d    = new Date(REC.startedAt);
