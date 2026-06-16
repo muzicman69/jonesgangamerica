@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="Diamond Live">
 <meta name="format-detection" content="telephone=no">
 <title>Diamond Live — Slow Pitch Softball</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-512.svg">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600;700&display=swap');
 
@@ -4198,6 +4200,15 @@ function showWatchTab() {
     if (dy > 80) closeSettingsSheet();
   }, { passive:true });
 })();
+
+  // ── Register Service Worker (PWA offline support) ──
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(r => console.log('[SW] registered', r.scope))
+        .catch(e => console.warn('[SW] registration failed', e));
+    });
+  }
 </script>
 </body>
 </html>
