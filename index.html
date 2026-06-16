@@ -380,7 +380,7 @@ nav{
 #live-grid{flex:1;display:grid;grid-template-columns:1fr 320px 280px;overflow:hidden;min-height:0;}
 
 /* live cam column */
-#live-cam-col{display:flex;flex-direction:column;border-right:1px solid var(--bd2);overflow:hidden;position:relative;}
+#live-cam-col{display:flex;flex-direction:column;border-right:1px solid var(--bd2);overflow:hidden;}
 #live-cam-col video{width:100%;flex-shrink:0;background:#000;display:block;max-height:44vh;object-fit:cover;}
 #score-controls{flex:1;overflow-y:auto;padding:14px 16px;background:var(--s1);}
 
@@ -1337,21 +1337,23 @@ input[type=range].vol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;h
     </div>
     <div id="live-grid">
       <!-- camera + controls -->
-      <div id="live-cam-col" style="position:relative;">
-        <video id="live-vid" playsinline muted autoplay></video>
-        <!-- streamer scorebug overlay -->
-        <div id="str-scorebug" style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;align-items:stretch;background:rgba(0,0,0,.92);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.2);border-radius:8px;overflow:hidden;pointer-events:none;z-index:10;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.6);">
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;flex:1;">
-            <div style="font-family:var(--fd);font-size:13px;font-weight:800;color:#fff;white-space:nowrap;" id="str-hname">—</div>
-            <div style="font-family:var(--fd);font-size:32px;font-weight:900;color:#fff;margin-left:auto;padding-right:10px;line-height:1;" id="str-hscore">0</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 12px;border-left:1px solid rgba(255,255,255,.12);border-right:1px solid rgba(255,255,255,.12);min-width:64px;">
-            <div style="font-family:var(--fd);font-size:12px;font-weight:700;color:var(--gold);" id="str-inn">LIVE</div>
-            <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;" id="str-cnt"></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;flex:1;flex-direction:row-reverse;">
-            <div style="font-family:var(--fd);font-size:11px;font-weight:800;color:#fff;" id="str-aname">—</div>
-            <div style="font-family:var(--fd);font-size:26px;font-weight:900;color:#fff;margin-right:auto;padding-left:8px;" id="str-ascore">0</div>
+      <div id="live-cam-col">
+        <div style="position:relative;flex-shrink:0;background:#000;line-height:0;">
+          <video id="live-vid" playsinline muted autoplay style="width:100%;display:block;max-height:44vh;object-fit:cover;"></video>
+          <!-- streamer scorebug overlay -->
+          <div id="str-scorebug" style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;align-items:stretch;background:rgba(0,0,0,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.2);border-radius:8px;overflow:hidden;pointer-events:none;z-index:10;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.6);">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;flex:1;">
+              <div style="font-family:var(--fd);font-size:13px;font-weight:800;color:#fff;white-space:nowrap;" id="str-hname">—</div>
+              <div style="font-family:var(--fd);font-size:32px;font-weight:900;color:#fff;margin-left:auto;padding-right:10px;line-height:1;" id="str-hscore">0</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 14px;border-left:1px solid rgba(255,255,255,.12);border-right:1px solid rgba(255,255,255,.12);min-width:70px;gap:3px;">
+              <div style="font-family:var(--fd);font-size:13px;font-weight:700;color:var(--gold);" id="str-inn">LIVE</div>
+              <div style="font-size:9px;color:rgba(255,255,255,.4);" id="str-cnt"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;flex:1;flex-direction:row-reverse;">
+              <div style="font-family:var(--fd);font-size:13px;font-weight:800;color:#fff;white-space:nowrap;" id="str-aname">—</div>
+              <div style="font-family:var(--fd);font-size:32px;font-weight:900;color:#fff;margin-right:auto;padding-left:10px;line-height:1;" id="str-ascore">0</div>
+            </div>
           </div>
         </div>
         <div id="score-controls">
@@ -2418,25 +2420,61 @@ const REC = {
   startedAt: null,
   sizeTimer: null,
   mimeType:  '',
+  canvas:    null,
+  frameId:   null,
 };
 
-function startRecording(stream) {
-  if (!stream || !window.MediaRecorder) return;
+function startRecording(camStream) {
+  if (!camStream || !window.MediaRecorder) return;
 
-  // Pick best supported format
+  // ── Canvas composite: video + scorebug burned in ──
+  // 1. Create an offscreen canvas sized to the video
+  const canvas = document.createElement('canvas');
+  canvas.width  = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+  REC.canvas = canvas;
+
+  // 2. Draw loop — video frame + scorebug overlay at 30fps
+  const vid = document.getElementById('live-vid');
+
+  function drawFrame() {
+    if (!REC.canvas) return;
+    const W = canvas.width, H = canvas.height;
+
+    // draw camera frame
+    if (vid && vid.readyState >= 2) {
+      ctx.drawImage(vid, 0, 0, W, H);
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // draw scorebug
+    drawScorebug(ctx, W, H);
+
+    REC.frameId = requestAnimationFrame(drawFrame);
+  }
+  drawFrame();
+
+  // 3. Capture canvas stream + original audio
+  const canvasStream = canvas.captureStream(30);
+  const audioTracks  = camStream.getAudioTracks();
+  audioTracks.forEach(t => canvasStream.addTrack(t));
+
+  // 4. Record the composite stream
   const types = [
-    'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4',
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
+    'video/mp4',
   ];
   REC.mimeType = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
 
   try {
-    REC.recorder  = new MediaRecorder(stream, {
-      mimeType:       REC.mimeType || undefined,
-      videoBitsPerSecond: 4_000_000,   // 4 Mbps — good quality, manageable file size
+    REC.recorder  = new MediaRecorder(canvasStream, {
+      mimeType:           REC.mimeType || undefined,
+      videoBitsPerSecond: 4_000_000,
       audioBitsPerSecond: 128_000,
     });
     REC.chunks    = [];
@@ -2446,23 +2484,123 @@ function startRecording(stream) {
       if (e.data && e.data.size > 0) REC.chunks.push(e.data);
       updateRecSize();
     };
-
     REC.recorder.onstop = () => saveRecording();
-
-    // collect a chunk every 5 seconds (keeps memory manageable for long games)
     REC.recorder.start(5000);
 
-    // show indicator
     const ind = document.getElementById('rec-indicator');
     if (ind) ind.style.display = 'flex';
-
-    // update size display every 10s
     REC.sizeTimer = setInterval(updateRecSize, 10000);
-    console.log('[REC] started, mimeType:', REC.mimeType || 'browser default');
+    console.log('[REC] canvas recording started, mimeType:', REC.mimeType);
   } catch(e) {
+    cancelAnimationFrame(REC.frameId);
+    REC.canvas = null;
     console.warn('[REC] could not start recording:', e.message);
     toast('Recording unavailable on this device/browser');
   }
+}
+
+// ── Draw the scorebug onto the canvas ──
+function drawScorebug(ctx, W, H) {
+  const m = A.meta;
+  if (!m) return;
+
+  const home  = m.home  || 'Home';
+  const away  = m.away  || 'Away';
+  const hScore = String(m.homeScore || 0);
+  const aScore = String(m.awayScore || 0);
+  const inning = m.inning || 'LIVE';
+
+  // layout constants
+  const bH   = 52;          // scorebug height
+  const bW   = 380;         // scorebug width
+  const bX   = (W - bW) / 2;
+  const bY   = H - bH - 14;
+  const r    = 8;            // corner radius
+
+  // background
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle   = '#000';
+  roundRect(ctx, bX, bY, bW, bH, r);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // border
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth   = 1.5;
+  roundRect(ctx, bX, bY, bW, bH, r);
+  ctx.stroke();
+
+  const midW = 80;
+  const teamW = (bW - midW) / 2;
+
+  // divider lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(bX + teamW, bY + 6);
+  ctx.lineTo(bX + teamW, bY + bH - 6);
+  ctx.moveTo(bX + teamW + midW, bY + 6);
+  ctx.lineTo(bX + teamW + midW, bY + bH - 6);
+  ctx.stroke();
+
+  // HOME team name
+  ctx.fillStyle = '#fff';
+  ctx.font      = 'bold 13px "Barlow Condensed", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(home.slice(0,12).toUpperCase(), bX + 12, bY + bH * 0.38);
+
+  // HOME score
+  ctx.font      = 'bold 28px "Barlow Condensed", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(hScore, bX + teamW - 10, bY + bH * 0.55);
+
+  // INNING (center)
+  ctx.fillStyle = '#fbbf24';
+  ctx.font      = 'bold 13px "Barlow Condensed", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(inning, bX + teamW + midW / 2, bY + bH / 2);
+
+  // AWAY score
+  ctx.fillStyle = '#fff';
+  ctx.font      = 'bold 28px "Barlow Condensed", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(aScore, bX + teamW + midW + 10, bY + bH * 0.55);
+
+  // AWAY team name
+  ctx.font      = 'bold 13px "Barlow Condensed", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(away.slice(0,12).toUpperCase(), bX + bW - 12, bY + bH * 0.38);
+
+  // REC badge top-left
+  const elapsed = REC.startedAt ? Math.floor((Date.now() - REC.startedAt) / 1000) : 0;
+  const mm = String(Math.floor(elapsed / 60)).padStart(2,'0');
+  const ss = String(elapsed % 60).padStart(2,'0');
+  ctx.fillStyle   = '#ef4444';
+  ctx.globalAlpha = 0.9;
+  roundRect(ctx, 12, 12, 80, 24, 4);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle   = '#fff';
+  ctx.font        = 'bold 12px "Barlow Condensed", sans-serif';
+  ctx.textAlign   = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('● REC ' + mm + ':' + ss, 18, 24);
+}
+
+// ── Helper: rounded rectangle path ──
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function updateRecSize() {
@@ -2476,10 +2614,13 @@ function stopRecordingAndSave() {
   const ind = document.getElementById('rec-indicator');
   if (ind) ind.style.display = 'none';
   if (REC.sizeTimer) { clearInterval(REC.sizeTimer); REC.sizeTimer = null; }
+  // stop canvas draw loop
+  if (REC.frameId) { cancelAnimationFrame(REC.frameId); REC.frameId = null; }
+  REC.canvas = null;
   if (REC.recorder && REC.recorder.state !== 'inactive') {
-    REC.recorder.stop();   // triggers onstop → saveRecording()
+    REC.recorder.stop();
   } else if (REC.chunks.length) {
-    saveRecording();       // already stopped, just save
+    saveRecording();
   }
 }
 
